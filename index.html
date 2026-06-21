@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Master Planner</title>
+<meta name="theme-color" content="#0b0f17" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Planner" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230b0f17'/%3E%3Cpath d='M52 92l22 22 54-58' fill='none' stroke='%234f9dff' stroke-width='14' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f17'/%3E%3Cpath d='M9 16l4 4 10-11' fill='none' stroke='%234f9dff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#141a26; --panel-2:#1b2230; --line:#27303f;
+    --text:#e7ecf3; --muted:#9aa7bd; --faint:#6b7689;
+    --accent:#4f9dff; --accent-soft:#1d3147;
+    --done:#5fd08a; --warn:#ffb454; --danger:#ff6b6b; --good:#5fd08a;
+    --radius:14px; --tap:44px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4f6fa; --panel:#ffffff; --panel-2:#f0f3f8; --line:#e1e6ef;
+      --text:#16202e; --muted:#5b6678; --faint:#8b95a7;
+      --accent:#1f6fe5; --accent-soft:#e4eefc;
+    }
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+    font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  button,input,select,textarea{font:inherit; color:inherit;}
+  button{cursor:pointer; border:none; background:none;}
+  .hidden{display:none !important;}
+  a{color:var(--accent);}
+
+  /* App bar */
+  header.bar{
+    position:sticky; top:0; z-index:30; background:var(--bg);
+    border-bottom:1px solid var(--line);
+    padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;
+    display:flex; align-items:center; gap:10px;
+  }
+  header.bar h1{font-size:18px; margin:0; font-weight:650; flex:1;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .iconbtn{width:var(--tap); height:var(--tap); border-radius:11px; display:flex;
+    align-items:center; justify-content:center; color:var(--muted);}
+  .iconbtn:hover{background:var(--panel);}
+  .iconbtn svg{width:22px; height:22px;}
+  .status{font-size:12px; color:var(--faint); min-width:54px; text-align:right;}
+  .status.saving{color:var(--warn);} .status.saved{color:var(--done);} .status.error{color:var(--danger);}
+
+  main{max-width:820px; margin:0 auto; padding:14px 14px 110px;}
+
+  .demo-banner{background:var(--accent-soft); color:var(--accent); border:1px solid transparent;
+    border-radius:10px; padding:9px 12px; font-size:13px; margin-bottom:14px; display:flex; gap:8px; align-items:center;}
+  .demo-banner b{font-weight:650;}
+
+  /* Cards / sections */
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; margin-bottom:14px;}
+  .card h2{font-size:13px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); margin:0 0 12px;}
+  .sectionhead{display:flex; align-items:center; gap:10px; margin:4px 0 12px;}
+  .sectionhead h2{font-size:20px; margin:0; flex:1; font-weight:680; text-transform:none; letter-spacing:0; color:var(--text);}
+  .subtle{color:var(--muted); font-size:13px;}
+
+  /* Buttons */
+  .btn{background:var(--accent); color:#fff; border-radius:10px; padding:0 16px; height:42px;
+    font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:6px;}
+  .btn:active{transform:translateY(1px);}
+  .btn.ghost{background:var(--panel-2); color:var(--text); border:1px solid var(--line);}
+  .btn.sm{height:36px; padding:0 12px; font-size:14px;}
+  .btn.warn{background:transparent; color:var(--danger); border:1px solid var(--line);}
+
+  /* Quick capture */
+  .capture{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:10px; margin-bottom:14px; display:flex; flex-direction:column; gap:8px;}
+  .capture textarea{flex:1; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:10px; padding:11px 12px; resize:none; min-height:44px; color:var(--text);}
+  .capture textarea:focus{outline:none; border-color:var(--accent);}
+  .capture .controls{display:flex; gap:8px; align-items:center;}
+  select.cat,input.txt{flex:1; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:10px; padding:0 12px; height:44px; color:var(--text);}
+  select.cat:focus,input.txt:focus{outline:none; border-color:var(--accent);}
+
+  /* Task rows */
+  .task{display:flex; align-items:flex-start; gap:11px; padding:9px 6px; border-radius:11px;}
+  .task:active{background:var(--panel-2);}
+  .check{flex:none; width:26px; height:26px; margin-top:1px; border-radius:8px;
+    border:2px solid var(--line); display:flex; align-items:center; justify-content:center; background:none;}
+  .check svg{width:16px; height:16px; color:#fff; opacity:0;}
+  .task.done .check{background:var(--done); border-color:var(--done);}
+  .task.done .check svg{opacity:1;}
+  .ttext{flex:1; min-width:0; word-wrap:break-word; overflow-wrap:anywhere;}
+  .task.done .ttext{color:var(--faint); text-decoration:line-through;}
+  .ttext .meta{display:block; font-size:11px; color:var(--faint); margin-top:2px;}
+  .ttext .meta.due-soon{color:var(--warn);} .ttext .meta.overdue{color:var(--danger);}
+  .rowact{flex:none; width:32px; height:32px; border-radius:9px; color:var(--faint);
+    display:flex; align-items:center; justify-content:center; opacity:.7; background:none;}
+  .rowact svg{width:16px; height:16px;}
+  .empty{text-align:center; color:var(--faint); padding:28px 16px; font-size:14px;}
+
+  /* chips / filters */
+  .chips{display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
+  .chip{font-size:13px; padding:7px 13px; border-radius:999px; border:1px solid var(--line);
+    color:var(--muted); background:var(--panel);}
+  .chip.on{background:var(--accent-soft); color:var(--accent); border-color:transparent;}
+
+  .project{border-left:3px solid var(--accent); padding-left:10px; margin-bottom:6px;}
+  .project .pname{font-weight:650;}
+  .project .pstep{font-size:13px; color:var(--muted);}
+
+  /* Today dashboard */
+  .greet{font-size:22px; font-weight:680; margin:2px 0 2px;}
+  .greet small{display:block; font-size:13px; color:var(--muted); font-weight:400; margin-top:2px;}
+  .pulse{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;}
+  .pulse .stat{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px;}
+  .pulse .stat .lbl{font-size:11px; color:var(--muted); margin-bottom:4px;}
+  .pulse .stat .val{font-size:20px; font-weight:680;}
+  .pulse .stat.good .val{color:var(--good);} .pulse .stat.bad .val{color:var(--danger);}
+
+  /* Budget */
+  .summary{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:14px;}
+  @media(max-width:640px){.summary{grid-template-columns:repeat(2,1fr);} .pulse{grid-template-columns:repeat(3,1fr);}}
+  .stat{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:13px;}
+  .stat .lbl{font-size:11px; color:var(--muted); margin-bottom:4px;}
+  .stat .val{font-size:20px; font-weight:680;}
+  .stat.good .val{color:var(--good);} .stat.bad .val{color:var(--danger);}
+  .lines{display:flex; flex-direction:column; gap:4px;}
+  .line{display:grid; grid-template-columns:1fr 116px 28px; gap:8px; align-items:center;}
+  .line input[type=text]{border:1px solid transparent; background:transparent; padding:7px 8px;
+    border-radius:7px; width:100%; color:var(--text);}
+  .line input[type=text]:hover{background:var(--panel-2);}
+  .line input[type=text]:focus{background:var(--panel-2); border-color:var(--line); outline:none;}
+  .amt{position:relative;}
+  .amt .dollar{position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:14px; pointer-events:none;}
+  .line input[type=number]{border:1px solid var(--line); background:var(--panel-2); padding:7px 9px 7px 20px;
+    border-radius:7px; width:100%; text-align:right; color:var(--text); -moz-appearance:textfield;}
+  .line input[type=number]::-webkit-outer-spin-button,.line input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .line input[type=number]:focus{outline:none; border-color:var(--accent);}
+  .del{border:none; background:none; color:var(--faint); font-size:18px; line-height:1; padding:4px; border-radius:6px;}
+  .del:hover{color:var(--danger);}
+  .subtotal{display:flex; justify-content:space-between; border-top:1px dashed var(--line); margin-top:9px; padding-top:9px; font-size:13px; color:var(--muted);}
+  .subtotal b{color:var(--text); font-weight:600;}
+  .addline{margin-top:8px; font-size:13px; color:var(--accent); background:none; padding:4px 2px;}
+  .scen{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+  .scen input[type=range]{flex:1; min-width:160px; accent-color:var(--accent);}
+  .scen .rentval{font-size:20px; font-weight:680; min-width:90px;}
+  .bar{height:14px; background:var(--panel-2); border-radius:99px; overflow:hidden; margin:14px 0 6px;}
+  .bar>span{display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .3s;}
+  .goalgrid{display:flex; gap:18px; flex-wrap:wrap;}
+  .goalfield label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px;}
+  .goalfield .gw{position:relative; display:inline-block;}
+  .goalfield .gw .dollar{position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--muted);}
+  .goalfield input{border:1px solid var(--line); background:var(--panel-2); padding:8px 9px 8px 20px;
+    border-radius:8px; text-align:right; width:130px; color:var(--text); -moz-appearance:textfield;}
+  .goalfield input::-webkit-outer-spin-button,.goalfield input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  .chartlegend{display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:12px; font-size:12.5px;}
+  .chartlegend span{display:flex; align-items:center; gap:6px; color:var(--muted);}
+  .chartlegend i{width:11px; height:11px; border-radius:3px; display:inline-block;}
+  canvas{max-height:240px;}
+  .info p{margin:0 0 9px; font-size:14px; color:var(--muted);}
+  .info ol{margin:6px 0 0; padding-left:20px; font-size:14px; color:var(--muted);}
+  .info li{margin-bottom:5px;}
+  .pill{display:inline-block; background:var(--accent-soft); color:var(--accent); font-size:12px; font-weight:600; padding:2px 9px; border-radius:99px; margin-bottom:8px;}
+
+  /* Habits */
+  .habit{display:flex; align-items:center; gap:12px; padding:11px 6px; border-bottom:1px solid var(--line);}
+  .habit:last-child{border-bottom:none;}
+  .habit .hname{flex:1; font-weight:600;}
+  .habit .hmeta{font-size:12px; color:var(--muted); font-weight:400;}
+  .habit .streak{font-size:13px; color:var(--warn); min-width:54px; text-align:right;}
+  .habit .markbtn{width:38px; height:38px; border-radius:10px; border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center; color:var(--muted);}
+  .habit.donetoday .markbtn{background:var(--done); border-color:var(--done); color:#fff;}
+  .habit.due .hname{color:var(--text);}
+
+  /* Journal */
+  .jentry{border-left:3px solid var(--line); padding:2px 0 12px 12px; margin-bottom:14px;}
+  .jentry .jdate{font-size:12px; color:var(--faint); margin-bottom:4px;}
+  .jentry .jbody{white-space:pre-wrap; font-size:15px;}
+  textarea.journal{width:100%; min-height:120px; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:10px; padding:12px; color:var(--text); resize:vertical;}
+  textarea.journal:focus{outline:none; border-color:var(--accent);}
+
+  /* Reading */
+  .read{display:flex; align-items:flex-start; gap:11px; padding:11px 6px; border-bottom:1px solid var(--line);}
+  .read:last-child{border-bottom:none;}
+  .read .rtitle{flex:1; font-weight:600;}
+  .read .rtitle small{display:block; color:var(--muted); font-weight:400; font-size:12px; margin-top:2px;}
+  .read .rstatus{font-size:12px; padding:3px 9px; border-radius:999px; border:1px solid var(--line); color:var(--muted); white-space:nowrap;}
+  .read .rstatus.reading{color:var(--accent); border-color:transparent; background:var(--accent-soft);}
+  .read .rstatus.done{color:var(--done); border-color:transparent; background:rgba(95,208,138,.13);}
+
+  /* Tab bar */
+  nav.tabs{position:fixed; bottom:0; left:0; right:0; z-index:40; background:var(--bg);
+    border-top:1px solid var(--line); display:flex; padding-bottom:env(safe-area-inset-bottom);}
+  nav.tabs button{flex:1; padding:8px 2px 7px; display:flex; flex-direction:column; align-items:center;
+    gap:3px; color:var(--faint); font-size:10.5px; background:none;}
+  nav.tabs button svg{width:22px; height:22px;}
+  nav.tabs button.on{color:var(--accent);}
+
+  /* Setup / settings */
+  .setup{max-width:520px; margin:0 auto; padding:22px 16px 60px;}
+  .setup h2{font-size:21px; margin:6px 0 4px;}
+  .setup p.lead{color:var(--muted); margin:0 0 20px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px; font-weight:600;}
+  .field input{width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; color:var(--text);}
+  .field input:focus{outline:none; border-color:var(--accent);}
+  .field .hint{font-size:12px; color:var(--faint); margin-top:5px;}
+  .setup .btn.full{width:100%; height:50px; font-size:16px; margin-top:6px;}
+  .setup .btn.full+.btn.full{margin-top:10px;}
+  .msg{border-radius:10px; padding:12px 14px; margin:14px 0; font-size:14px; display:none;}
+  .msg.show{display:block;}
+  .msg.ok{background:rgba(95,208,138,.13); color:var(--done); border:1px solid rgba(95,208,138,.3);}
+  .msg.err{background:rgba(255,107,107,.12); color:var(--danger); border:1px solid rgba(255,107,107,.3);}
+  details.help{margin-top:22px; border-top:1px solid var(--line); padding-top:16px;}
+  details.help summary{cursor:pointer; font-weight:600; color:var(--accent);}
+  details.help ol{padding-left:20px; color:var(--muted); font-size:14px;}
+  details.help li{margin-bottom:8px;}
+  details.help code{background:var(--panel-2); padding:1px 6px; border-radius:5px; font-size:13px;}
+
+  .toast{position:fixed; left:50%; bottom:80px; transform:translateX(-50%) translateY(20px);
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    padding:11px 18px; border-radius:11px; font-size:14px; opacity:0; pointer-events:none;
+    transition:.2s; z-index:60; box-shadow:0 8px 30px rgba(0,0,0,.3); max-width:90%;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- ============ SETUP / SETTINGS SCREEN ============ -->
+<div id="setup" class="setup hidden">
+  <h2>Connect Master Planner</h2>
+  <p class="lead">Point this at a GitHub repo holding your <code>planner.json</code>. Your token stays only on this device. Or skip and explore in demo mode.</p>
+
+  <div class="field"><label>GitHub username (owner)</label>
+    <input id="f-owner" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. pgrabhorn" /></div>
+  <div class="field"><label>Repository name (private)</label>
+    <input id="f-repo" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. planner" /></div>
+  <div class="field"><label>File path in repo</label>
+    <input id="f-path" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="planner.json" />
+    <div class="hint">Usually just <code>planner.json</code> at the top level.</div></div>
+  <div class="field"><label>Branch</label>
+    <input id="f-branch" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="main" /></div>
+  <div class="field"><label>Access token</label>
+    <input id="f-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_..." />
+    <div class="hint">Fine-grained token, Contents read/write, scoped to this one repo.</div></div>
+
+  <div id="setup-msg" class="msg"></div>
+  <button id="btn-connect" class="btn full">Connect &amp; sync</button>
+  <button id="btn-demo" class="btn full ghost">Skip — explore in demo mode</button>
+
+  <details class="help">
+    <summary>First-time setup</summary>
+    <ol>
+      <li>Create a <b>private</b> repo (e.g. <code>planner</code>). The app will create <code>planner.json</code> in it on first save, so you can start empty.</li>
+      <li>GitHub → Settings → Developer settings → <b>Fine-grained tokens</b> → Generate new token.</li>
+      <li><b>Repository access</b> → Only select repositories → pick your planner repo.</li>
+      <li><b>Permissions → Repository permissions → Contents</b> → Read and write.</li>
+      <li>Generate, copy, paste above, then Connect &amp; sync.</li>
+    </ol>
+  </details>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="app" class="hidden">
+  <header class="bar">
+    <h1 id="doc-title">Master Planner</h1>
+    <span id="status" class="status">—</span>
+    <button class="iconbtn" id="btn-refresh" title="Refresh" aria-label="Refresh">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+    </button>
+    <button class="iconbtn" id="btn-settings" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <main id="view"></main>
+
+  <nav class="tabs" id="tabs"></nav>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+"use strict";
+(function(){
+  const LS  = "planner.config.v1";
+  const UIK = "planner.ui.v1";
+  const API = "https://api.github.com";
+
+  let cfg = load(LS, null);
+  let ui  = load(UIK, { tab:"today" });
+  let store = null;        // the planner.json object
+  let sha = null;          // github file sha
+  let demo = false;
+  let saveTimer = null, dirty = false;
+
+  // ---------- storage helpers ----------
+  function load(k, dflt){ try{ return JSON.parse(localStorage.getItem(k)) || dflt; }catch(e){ return dflt; } }
+  function persist(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+  function saveUI(){ persist(UIK, ui); }
+
+  // ---------- base64 utf-8 ----------
+  function b64decode(b64){ const bin=atob((b64||"").replace(/\s/g,"")); const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0)); return new TextDecoder("utf-8").decode(bytes); }
+  function b64encode(str){ const bytes=new TextEncoder().encode(str); let bin=""; for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]); return btoa(bin); }
+
+  // ---------- GitHub API ----------
+  function ghHeaders(){ return { "Authorization":"Bearer "+cfg.token, "Accept":"application/vnd.github+json", "X-GitHub-Api-Version":"2022-11-28" }; }
+  function contentsUrl(){ return API+"/repos/"+encodeURIComponent(cfg.owner)+"/"+encodeURIComponent(cfg.repo)+"/contents/"+cfg.path.split("/").map(encodeURIComponent).join("/"); }
+  async function ghGet(){
+    const r = await fetch(contentsUrl()+"?ref="+encodeURIComponent(cfg.branch)+"&t="+Date.now(), { headers:ghHeaders(), cache:"no-store" });
+    if(r.status===404) return { missing:true };
+    if(!r.ok) throw httpErr(r.status);
+    const j = await r.json();
+    return { text:b64decode(j.content), sha:j.sha };
+  }
+  async function ghPut(text){
+    const body = { message:"Update via Master Planner "+new Date().toISOString(), content:b64encode(text), branch:cfg.branch };
+    if(sha) body.sha = sha;
+    const r = await fetch(contentsUrl(), { method:"PUT", headers:Object.assign({"Content-Type":"application/json"},ghHeaders()), body:JSON.stringify(body) });
+    if(!r.ok){ const e=httpErr(r.status); e.status=r.status; throw e; }
+    const j = await r.json();
+    return j.content.sha;
+  }
+  function httpErr(status){
+    const m={401:"Token rejected (401). Check the access token.",403:"Forbidden (403). Token may lack Contents read/write.",404:"Not found (404). Check owner, repo, path, branch.",409:"Conflict (409). File changed elsewhere.",422:"Unprocessable (422). Check branch name."};
+    const e=new Error(m[status]||("Request failed ("+status+")")); e.status=status; return e;
+  }
+
+  // =========================================================
+  //  DATA MODEL  (hybrid: structured fields + markdown prose)
+  // =========================================================
+  function emptyStore(){
+    return {
+      version:2,
+      updated:null,
+      tasks:[],        // {id,text,done,project,due,created,src,doneAt}
+      projects:[],     // {id,name,nextStep,created}
+      habits:[],       // {id,name,cadenceDays,lastDone,streak,created}
+      reading:[],      // {id,title,kind,status,link,note,created}  status: toread|reading|done
+      journal:[],      // {id,date,body}  body = freeform markdown/prose
+      budget:defaultBudget(),
+      settings:{ name:"" }
+    };
+  }
+  function defaultBudget(){
+    return {
+      income:5776.60, efTarget:28000, efNow:0,
+      groups:[
+        {name:"Housing", items:[{name:"Rent",amt:3100},{name:"Internet",amt:80},{name:"Water / sewer",amt:40},{name:"Electric",amt:110},{name:"Gas (home)",amt:60}]},
+        {name:"Transportation", items:[{name:"Vehicle insurance (set-aside)",amt:69},{name:"Gas / vehicle misc",amt:40}]},
+        {name:"Food", items:[{name:"Groceries + dining",amt:1350}]},
+        {name:"Recurring", items:[{name:"Phone",amt:30},{name:"Subscriptions",amt:100},{name:"Therapy (HSA-covered)",amt:0}]},
+        {name:"Misc", items:[{name:"Misc / discretionary",amt:300}]}
+      ]
+    };
+  }
+  function seedStore(){
+    const s = emptyStore();
+    s.settings.name = "Paul";
+    const today = isoDate();
+    s.projects = [ {id:uid(),name:"Set up Master Planner repo",nextStep:"Create private GitHub repo + token",created:today} ];
+    s.tasks = [
+      {id:uid(),text:"Rotate the old tasks-app GitHub token",done:false,project:null,due:today,created:today,src:"demo"},
+      {id:uid(),text:"Move budget numbers into the planner",done:false,project:null,due:null,created:today,src:"demo"},
+      {id:uid(),text:"Try checking something off",done:false,project:null,due:null,created:today,src:"demo"},
+      {id:uid(),text:"Welcome to demo mode",done:true,project:null,due:null,created:today,src:"demo",doneAt:today}
+    ];
+    s.habits = [
+      {id:uid(),name:"Morning walk",cadenceDays:1,lastDone:null,streak:0,created:today},
+      {id:uid(),name:"Review finances",cadenceDays:7,lastDone:null,streak:0,created:today}
+    ];
+    s.reading = [
+      {id:uid(),title:"Atomic Habits",kind:"Book",status:"reading",link:"",note:"",created:today},
+      {id:uid(),title:"A long article on indexing",kind:"Article",status:"toread",link:"",note:"",created:today}
+    ];
+    s.journal = [ {id:uid(),date:today,body:"First entry. This is the journal — plain prose, never parsed into fields."} ];
+    return s;
+  }
+
+  function migrate(s){
+    const base = emptyStore();
+    s = Object.assign(base, s||{});
+    s.budget = Object.assign(defaultBudget(), s.budget||{});
+    ["tasks","projects","habits","reading","journal"].forEach(k=>{ if(!Array.isArray(s[k])) s[k]=[]; });
+    return s;
+  }
+
+  // ---------- small utils ----------
+  function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+  function isoDate(d){ d=d||new Date(); return d.toISOString().slice(0,10); }
+  function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
+  const money = n => "$"+(Math.round(n)).toLocaleString("en-US");
+  function escapeHtml(s){ return (s==null?"":""+s).replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+  function mdInline(s){ return escapeHtml(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/\*(.+?)\*/g,"<i>$1</i>"); }
+  const $ = s=>document.querySelector(s);
+
+  // =========================================================
+  //  SAVE
+  // =========================================================
+  function changed(){ if(store) store.updated=new Date().toISOString(); dirty=true; if(demo){ setStatus("demo"); return; } setStatus("unsaved"); clearTimeout(saveTimer); saveTimer=setTimeout(saveNow,1200); }
+  async function saveNow(){
+    if(demo){ dirty=false; return; }
+    if(!dirty || !store) return;
+    clearTimeout(saveTimer); setStatus("saving");
+    const text = JSON.stringify(store,null,2);
+    try{ sha = await ghPut(text); dirty=false; setStatus("saved"); }
+    catch(e){
+      if(e.status===409){ try{ const fresh=await ghGet(); sha=fresh.sha; sha=await ghPut(text); dirty=false; setStatus("saved"); return; }catch(e2){ setStatus("error"); toast("Save failed: "+e2.message); return; } }
+      setStatus("error"); toast("Save failed: "+e.message);
+    }
+  }
+  function setStatus(s){
+    const el=$("#status");
+    el.className="status "+(s==="saving"?"saving":s==="saved"?"saved":s==="error"?"error":"");
+    el.textContent = s==="saving"?"Saving…":s==="saved"?"Saved":s==="error"?"Error":s==="unsaved"?"Unsaved":s==="demo"?"Demo":"—";
+  }
+
+  // =========================================================
+  //  TABS / ROUTER
+  // =========================================================
+  const TABS = [
+    {id:"today", label:"Today", icon:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>'},
+    {id:"tasks", label:"Tasks", icon:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'},
+    {id:"budget",label:"Budget",icon:'<path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'},
+    {id:"habits",label:"Habits",icon:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>'},
+    {id:"journal",label:"Journal",icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'},
+    {id:"reading",label:"Reading",icon:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'}
+  ];
+  function renderTabs(){
+    const nav=$("#tabs"); nav.innerHTML="";
+    TABS.forEach(t=>{
+      const b=document.createElement("button");
+      b.className = ui.tab===t.id?"on":"";
+      b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+t.icon+'</svg><span>'+t.label+'</span>';
+      b.addEventListener("click", ()=>{ ui.tab=t.id; saveUI(); render(); });
+      nav.appendChild(b);
+    });
+  }
+  function go(tab){ ui.tab=tab; saveUI(); render(); }
+
+  function render(){
+    if(!store) return;
+    renderTabs();
+    const v=$("#view"); v.innerHTML="";
+    ({today:renderToday, tasks:renderTasks, budget:renderBudget, habits:renderHabits, journal:renderJournal, reading:renderReading}[ui.tab]||renderToday)(v);
+  }
+
+  // =========================================================
+  //  TODAY
+  // =========================================================
+  function renderToday(v){
+    const name = store.settings.name ? ", "+store.settings.name : "";
+    const d = new Date();
+    const dateStr = d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+    const hr=d.getHours(); const part = hr<12?"Good morning":hr<18?"Good afternoon":"Good evening";
+
+    const head=document.createElement("div");
+    head.innerHTML='<div class="greet">'+escapeHtml(part)+escapeHtml(name)+'.<small>'+escapeHtml(dateStr)+'</small></div>';
+    v.appendChild(head);
+
+    // pulse stats
+    const today=isoDate();
+    const openTasks = store.tasks.filter(t=>!t.done);
+    const dueToday = openTasks.filter(t=>t.due && t.due<=today).length;
+    const habitsDue = store.habits.filter(h=>habitDue(h)).length;
+    const left = budgetLeft();
+    const pulse=document.createElement("div"); pulse.className="pulse";
+    pulse.innerHTML =
+      stat("Open tasks", openTasks.length, "") +
+      stat("Due / overdue", dueToday, dueToday>0?"bad":"") +
+      stat("Left / mo", money(left), left>=0?"good":"bad");
+    pulse.querySelectorAll(".stat")[0].addEventListener("click",()=>go("tasks"));
+    pulse.querySelectorAll(".stat")[2].addEventListener("click",()=>go("budget"));
+    v.appendChild(pulse);
+
+    // quick capture
+    v.appendChild(captureBar());
+
+    // due / overdue
+    const due = openTasks.filter(t=>t.due && t.due<=today).sort((a,b)=>(a.due||"").localeCompare(b.due||""));
+    if(due.length){
+      const c=card("Due & overdue");
+      due.forEach(t=>c.appendChild(taskRow(t)));
+      v.appendChild(c);
+    }
+
+    // habits due today
+    const hd = store.habits.filter(h=>habitDue(h));
+    if(hd.length){
+      const c=card("Habits for today");
+      hd.forEach(h=>c.appendChild(habitRow(h)));
+      v.appendChild(c);
+    }
+
+    // a few open tasks
+    const rest = openTasks.filter(t=>!(t.due && t.due<=today)).slice(0,6);
+    if(rest.length){
+      const c=card("Next up");
+      rest.forEach(t=>c.appendChild(taskRow(t)));
+      const more=document.createElement("button"); more.className="addline"; more.textContent="All tasks →";
+      more.addEventListener("click",()=>go("tasks")); c.appendChild(more);
+      v.appendChild(c);
+    }
+
+    if(!due.length && !hd.length && !rest.length){
+      const c=card("All clear"); const e=document.createElement("div"); e.className="empty"; e.textContent="Nothing pending. Capture something above."; c.appendChild(e); v.appendChild(c);
+    }
+  }
+  function stat(lbl,val,cls){ return '<div class="stat '+cls+'"><div class="lbl">'+escapeHtml(lbl)+'</div><div class="val">'+escapeHtml(val)+'</div></div>'; }
+
+  // =========================================================
+  //  TASKS
+  // =========================================================
+  function renderTasks(v){
+    v.appendChild(sectionHead("Tasks & Projects"));
+    v.appendChild(captureBar());
+
+    // projects
+    if(store.projects.length){
+      const c=card("Projects");
+      store.projects.forEach(p=>{
+        const row=document.createElement("div"); row.className="project";
+        row.innerHTML='<div class="pname">'+escapeHtml(p.name)+'</div>'+(p.nextStep?'<div class="pstep">Next: '+escapeHtml(p.nextStep)+'</div>':'');
+        row.style.cursor="pointer";
+        row.addEventListener("click",()=>editProject(p));
+        c.appendChild(row);
+      });
+      const add=document.createElement("button"); add.className="addline"; add.textContent="+ add project";
+      add.addEventListener("click",addProject); c.appendChild(add);
+      v.appendChild(c);
+    } else {
+      const c=card("Projects"); const add=document.createElement("button"); add.className="addline"; add.textContent="+ add project";
+      add.addEventListener("click",addProject); c.appendChild(add); v.appendChild(c);
+    }
+
+    // show/hide done chip
+    const chips=document.createElement("div"); chips.className="chips";
+    const chip=document.createElement("button"); chip.className="chip"+(ui.showDone?" on":""); chip.textContent="Show completed: "+(ui.showDone?"on":"off");
+    chip.addEventListener("click",()=>{ ui.showDone=!ui.showDone; saveUI(); render(); }); chips.appendChild(chip);
+    v.appendChild(chips);
+
+    const open=store.tasks.filter(t=>!t.done);
+    const done=store.tasks.filter(t=>t.done);
+    const c=card("Tasks");
+    if(!open.length){ const e=document.createElement("div"); e.className="empty"; e.textContent="No open tasks."; c.appendChild(e); }
+    open.sort((a,b)=>(a.due||"9999").localeCompare(b.due||"9999")).forEach(t=>c.appendChild(taskRow(t)));
+    if(ui.showDone && done.length){
+      const sh=document.createElement("div"); sh.className="subtle"; sh.style.margin="12px 0 4px"; sh.textContent="Completed";
+      c.appendChild(sh);
+      done.sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||"")).forEach(t=>c.appendChild(taskRow(t)));
+    }
+    v.appendChild(c);
+  }
+
+  function taskRow(t){
+    const row=document.createElement("div"); row.className="task"+(t.done?" done":"");
+    const chk=document.createElement("button"); chk.className="check"; chk.setAttribute("aria-label","Toggle");
+    chk.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+    chk.addEventListener("click",e=>{ e.stopPropagation(); t.done=!t.done; t.doneAt=t.done?isoDate():null; changed(); render(); });
+    row.appendChild(chk);
+
+    const txt=document.createElement("div"); txt.className="ttext";
+    let meta="";
+    const proj = t.project ? store.projects.find(p=>p.id===t.project) : null;
+    const bits=[];
+    if(proj) bits.push(escapeHtml(proj.name));
+    let dueCls="";
+    if(t.due){ const dd=daysBetween(isoDate(),t.due); dueCls = dd<0?"overdue":dd<=1?"due-soon":""; bits.push(dueLabel(t.due,dd)); }
+    if(bits.length) meta='<span class="meta '+dueCls+'">'+bits.join(" · ")+'</span>';
+    txt.innerHTML=mdInline(t.text)+meta;
+    row.appendChild(txt);
+
+    const ed=document.createElement("button"); ed.className="rowact"; ed.setAttribute("aria-label","Edit");
+    ed.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+    ed.addEventListener("click",e=>{ e.stopPropagation(); editTask(t); });
+    row.appendChild(ed);
+    return row;
+  }
+  function dueLabel(due,dd){ if(dd<0) return Math.abs(dd)+"d overdue"; if(dd===0) return "Due today"; if(dd===1) return "Due tomorrow"; return "Due "+due; }
+
+  function editTask(t){
+    const nv=prompt("Edit task (blank to delete):", t.text);
+    if(nv===null) return;
+    if(nv.trim()===""){ store.tasks=store.tasks.filter(x=>x!==t); changed(); render(); toast("Deleted"); return; }
+    t.text=nv.trim();
+    const due=prompt("Due date YYYY-MM-DD (blank for none):", t.due||"");
+    if(due!==null) t.due = due.trim()||null;
+    changed(); render();
+  }
+  function addProject(){ const n=prompt("Project name:"); if(!n||!n.trim()) return; const ns=prompt("First / next step (optional):")||""; store.projects.push({id:uid(),name:n.trim(),nextStep:ns.trim(),created:isoDate()}); changed(); render(); }
+  function editProject(p){
+    const n=prompt("Project name (blank to delete):", p.name);
+    if(n===null) return;
+    if(n.trim()===""){ store.projects=store.projects.filter(x=>x!==p); store.tasks.forEach(t=>{ if(t.project===p.id) t.project=null; }); changed(); render(); toast("Deleted"); return; }
+    p.name=n.trim();
+    const ns=prompt("Next step:", p.nextStep||""); if(ns!==null) p.nextStep=ns.trim();
+    changed(); render();
+  }
+
+  // ---------- quick capture ----------
+  function captureBar(){
+    const wrap=document.createElement("div"); wrap.className="capture";
+    const ta=document.createElement("textarea"); ta.rows=1; ta.placeholder="Add a task… (use 'due tomorrow', 'due 2026-07-01')";
+    ta.addEventListener("input",()=>{ ta.style.height="auto"; ta.style.height=Math.min(ta.scrollHeight,140)+"px"; });
+    const controls=document.createElement("div"); controls.className="controls";
+    const sel=document.createElement("select"); sel.className="cat";
+    sel.innerHTML='<option value="">No project</option>'+store.projects.map(p=>'<option value="'+p.id+'">'+escapeHtml(p.name)+'</option>').join("");
+    const btn=document.createElement("button"); btn.className="btn"; btn.textContent="Add";
+    const add=()=>{
+      const raw=ta.value.trim(); if(!raw) return;
+      const { text, due } = parseCapture(raw);
+      store.tasks.unshift({id:uid(),text,done:false,project:sel.value||null,due,created:isoDate(),src:"paul"});
+      ta.value=""; ta.style.height="auto"; changed(); render(); toast("Added");
+    };
+    btn.addEventListener("click",add);
+    ta.addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); add(); } });
+    controls.appendChild(sel); controls.appendChild(btn);
+    wrap.appendChild(ta); wrap.appendChild(controls);
+    return wrap;
+  }
+  function parseCapture(raw){
+    let text=raw, due=null;
+    const iso=raw.match(/\bdue\s+(\d{4}-\d{2}-\d{2})\b/i);
+    if(iso){ due=iso[1]; text=raw.replace(iso[0],"").trim(); }
+    else if(/\bdue\s+today\b/i.test(raw)){ due=isoDate(); text=raw.replace(/\bdue\s+today\b/i,"").trim(); }
+    else if(/\bdue\s+tomorrow\b/i.test(raw)){ const d=new Date(); d.setDate(d.getDate()+1); due=isoDate(d); text=raw.replace(/\bdue\s+tomorrow\b/i,"").trim(); }
+    return { text:text||raw, due };
+  }
+
+  // =========================================================
+  //  BUDGET
+  // =========================================================
+  let chart=null;
+  function budgetLeft(){ const b=store.budget; const spend=b.groups.reduce((s,g)=>s+g.items.reduce((x,i)=>x+(+i.amt||0),0),0); return (+b.income||0)-spend; }
+  function renderBudget(v){
+    v.appendChild(sectionHead("Budget"));
+    const b=store.budget;
+    const spend=b.groups.reduce((s,g)=>s+g.items.reduce((x,i)=>x+(+i.amt||0),0),0);
+    const left=(+b.income||0)-spend;
+    const rate=b.income>0?(left/b.income*100):0;
+
+    const sum=document.createElement("div"); sum.className="summary";
+    sum.innerHTML = stat("Take-home / mo",money(b.income),"")+stat("Total spending",money(spend),"")+
+      stat("Left for savings",money(left),left>=0?"good":"bad")+stat("Savings rate",rate.toFixed(0)+"%","");
+    v.appendChild(sum);
+
+    // income
+    const inc=card("Income");
+    inc.innerHTML+='';
+    const incRow=document.createElement("div"); incRow.className="line";
+    incRow.innerHTML='<input type="text" value="Take-home (monthly)" disabled style="opacity:.8"><div class="amt"><span class="dollar">$</span><input type="number" step="10" value="'+b.income+'"></div><span></span>';
+    incRow.querySelector('input[type=number]').addEventListener("input",e=>{ b.income=parseFloat(e.target.value)||0; changed(); softBudget(); });
+    inc.appendChild(incRow); v.appendChild(inc);
+
+    // rent scenario (if a Rent line exists)
+    const rent=findRent();
+    if(rent!==null){
+      const sc=card("Rent scenario");
+      const row=document.createElement("div"); row.className="scen";
+      row.innerHTML='<input type="range" min="2100" max="3400" step="25" value="'+Math.max(2100,Math.min(3400,rent))+'"><div class="rentval">'+money(rent)+'</div>';
+      const range=row.querySelector("input"), out=row.querySelector(".rentval");
+      range.addEventListener("input",()=>{ setRent(+range.value); out.textContent=money(+range.value); changed(); softBudget(); });
+      sc.appendChild(row); v.appendChild(sc);
+    }
+
+    // groups
+    const gWrap=document.createElement("div");
+    b.groups.forEach((g,gi)=>{
+      const c=card(g.name);
+      const lines=document.createElement("div"); lines.className="lines";
+      g.items.forEach((it,ii)=>{
+        const ln=document.createElement("div"); ln.className="line";
+        ln.innerHTML='<input type="text" value="'+escapeHtml(it.name)+'"><div class="amt"><span class="dollar">$</span><input type="number" step="5" value="'+it.amt+'"></div><button class="del" title="Remove">×</button>';
+        const [nameI,amtI]=ln.querySelectorAll("input"); const delB=ln.querySelector(".del");
+        nameI.addEventListener("input",()=>{ it.name=nameI.value; changed(); });
+        amtI.addEventListener("input",()=>{ it.amt=parseFloat(amtI.value)||0; changed(); softBudget(); });
+        delB.addEventListener("click",()=>{ g.items.splice(ii,1); changed(); render(); });
+        lines.appendChild(ln);
+      });
+      c.appendChild(lines);
+      const addB=document.createElement("button"); addB.className="addline"; addB.textContent="+ add line";
+      addB.addEventListener("click",()=>{ g.items.push({name:"New item",amt:0}); changed(); render(); });
+      c.appendChild(addB);
+      const sub=document.createElement("div"); sub.className="subtotal";
+      sub.innerHTML='<span>Subtotal</span><b>'+money(g.items.reduce((x,i)=>x+(+i.amt||0),0))+'</b>';
+      c.appendChild(sub);
+      gWrap.appendChild(c);
+    });
+    v.appendChild(gWrap);
+    const addG=document.createElement("button"); addG.className="addline"; addG.textContent="+ add category";
+    addG.addEventListener("click",()=>{ const n=prompt("Category name:"); if(!n||!n.trim())return; b.groups.push({name:n.trim(),items:[]}); changed(); render(); });
+    v.appendChild(addG);
+
+    // chart
+    const ch=card("Where it goes");
+    const cv=document.createElement("canvas"); cv.id="bchart"; ch.appendChild(cv);
+    const lg=document.createElement("div"); lg.className="chartlegend"; lg.id="blegend"; ch.appendChild(lg);
+    v.appendChild(ch);
+
+    // emergency fund
+    const ef=card("Emergency fund");
+    const grid=document.createElement("div"); grid.className="goalgrid";
+    grid.innerHTML='<div class="goalfield"><label>Target</label><div class="gw"><span class="dollar">$</span><input type="number" step="500" value="'+b.efTarget+'" id="efTarget"></div></div>'+
+                   '<div class="goalfield"><label>Current balance</label><div class="gw"><span class="dollar">$</span><input type="number" step="100" value="'+b.efNow+'" id="efNow"></div></div>';
+    ef.appendChild(grid);
+    const barWrap=document.createElement("div"); barWrap.className="bar"; barWrap.innerHTML='<span id="efBar"></span>'; ef.appendChild(barWrap);
+    const note=document.createElement("p"); note.className="subtle"; note.id="efNote"; ef.appendChild(note);
+    grid.querySelector("#efTarget").addEventListener("input",e=>{ b.efTarget=parseFloat(e.target.value)||0; changed(); softBudget(); });
+    grid.querySelector("#efNow").addEventListener("input",e=>{ b.efNow=parseFloat(e.target.value)||0; changed(); softBudget(); });
+    v.appendChild(ef);
+
+    // windfall guidance
+    const wf=card("Windfalls — not in the monthly math"); wf.classList.add("info");
+    wf.innerHTML+='<span class="pill">distributions · home payout</span><p>When a distribution or the home buyout lands, split it on arrival:</p><ol><li>~50% to the ownership-stake payback.</li><li>Set aside taxes on the full amount; fund the year\'s <b>$800/qtr</b> estimates and park separately.</li><li>Deploy the rest: top off the emergency fund, then down-payment fund &amp; brokerage.</li></ol>';
+    v.appendChild(wf);
+
+    softBudget();
+  }
+  function softBudget(){
+    // updates summary stats, chart, EF without full re-render
+    const b=store.budget;
+    const spend=b.groups.reduce((s,g)=>s+g.items.reduce((x,i)=>x+(+i.amt||0),0),0);
+    const left=(+b.income||0)-spend;
+    const rate=b.income>0?(left/b.income*100):0;
+    const stats=document.querySelectorAll("#view .summary .stat .val");
+    if(stats.length>=4){ stats[0].textContent=money(b.income); stats[1].textContent=money(spend); stats[2].textContent=money(left); stats[3].textContent=rate.toFixed(0)+"%";
+      const leftCard=document.querySelectorAll("#view .summary .stat")[2]; if(leftCard) leftCard.className="stat "+(left>=0?"good":"bad"); }
+    // subtotals
+    document.querySelectorAll("#view .subtotal b").forEach((el,i)=>{ if(b.groups[i]) el.textContent=money(b.groups[i].items.reduce((x,it)=>x+(+it.amt||0),0)); });
+    drawBudgetChart();
+    // EF
+    const bar=document.getElementById("efBar"), efNote=document.getElementById("efNote");
+    if(bar){ const tgt=b.efTarget,now=b.efNow; const pct=tgt>0?Math.min(100,now/tgt*100):0; bar.style.width=pct+"%";
+      const remain=Math.max(0,tgt-now); let note=money(now)+" of "+money(tgt)+" · "+pct.toFixed(0)+"% there.";
+      if(remain>0){ if(left>0){ const m=Math.ceil(remain/left); note+=" At "+money(left)+"/mo that's ~"+m+" month"+(m>1?"s":"")+" to full."; } else note+=" No monthly surplus right now — trim spending or rent."; }
+      else note+=" Fully funded.";
+      efNote.textContent=note; }
+  }
+  function findRent(){ for(const g of store.budget.groups) for(const it of g.items) if((it.name||"").trim().toLowerCase()==="rent") return +it.amt||0; return null; }
+  function setRent(v){ for(const g of store.budget.groups) for(const it of g.items) if((it.name||"").trim().toLowerCase()==="rent") it.amt=v; }
+  const PALETTE=["#4f9dff","#5fd08a","#ffb454","#a98bff","#ff6b6b","#4ac0c0","#c0c84a"];
+  function drawBudgetChart(){
+    const cv=document.getElementById("bchart"); if(!cv||typeof Chart==="undefined") return;
+    const labels=[],vals=[],cols=[]; const b=store.budget;
+    b.groups.forEach((g,i)=>{ const t=g.items.reduce((x,it)=>x+(+it.amt||0),0); if(t>0){ labels.push(g.name); vals.push(t); cols.push(PALETTE[i%PALETTE.length]); } });
+    const left=budgetLeft(); if(left>0){ labels.push("Savings"); vals.push(left); cols.push("#9fb6ab"); }
+    if(chart) chart.destroy();
+    chart=new Chart(cv,{type:"doughnut",data:{labels,datasets:[{data:vals,backgroundColor:cols,borderWidth:2,borderColor:getComputedStyle(document.body).getPropertyValue("--panel")}]},options:{plugins:{legend:{display:false}},cutout:"62%"}});
+    const lg=document.getElementById("blegend"); if(lg){ lg.innerHTML=""; labels.forEach((l,i)=>{ const s=document.createElement("span"); s.innerHTML='<i style="background:'+cols[i]+'"></i>'+escapeHtml(l)+' — '+money(vals[i]); lg.appendChild(s); }); }
+  }
+
+  // =========================================================
+  //  HABITS
+  // =========================================================
+  function habitDue(h){ if(!h.lastDone) return true; return daysBetween(h.lastDone,isoDate())>=h.cadenceDays; }
+  function isDoneToday(h){ return h.lastDone===isoDate(); }
+  function renderHabits(v){
+    v.appendChild(sectionHead("Habits"));
+    const c=card("Routines");
+    if(!store.habits.length){ const e=document.createElement("div"); e.className="empty"; e.textContent="No habits yet."; c.appendChild(e); }
+    store.habits.forEach(h=>c.appendChild(habitRow(h)));
+    const add=document.createElement("button"); add.className="addline"; add.textContent="+ add habit";
+    add.addEventListener("click",()=>{ const n=prompt("Habit name:"); if(!n||!n.trim())return; const cad=prompt("Every how many days? (1 = daily, 7 = weekly)","1"); store.habits.push({id:uid(),name:n.trim(),cadenceDays:Math.max(1,parseInt(cad)||1),lastDone:null,streak:0,created:isoDate()}); changed(); render(); });
+    c.appendChild(add); v.appendChild(c);
+  }
+  function habitRow(h){
+    const row=document.createElement("div"); row.className="habit"+(isDoneToday(h)?" donetoday":"")+(habitDue(h)?" due":"");
+    const cad=h.cadenceDays===1?"Daily":h.cadenceDays===7?"Weekly":"Every "+h.cadenceDays+"d";
+    const nm=document.createElement("div"); nm.className="hname"; nm.innerHTML=escapeHtml(h.name)+' <span class="hmeta">· '+cad+(h.lastDone?" · last "+h.lastDone:"")+'</span>';
+    const streak=document.createElement("div"); streak.className="streak"; streak.textContent=h.streak>0?("🔥 "+h.streak):"";
+    const mark=document.createElement("button"); mark.className="markbtn";
+    mark.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+    mark.addEventListener("click",()=>{
+      if(isDoneToday(h)){ h.lastDone=null; h.streak=Math.max(0,h.streak-1); }
+      else { const cont = h.lastDone && daysBetween(h.lastDone,isoDate())<=h.cadenceDays; h.streak=cont?h.streak+1:1; h.lastDone=isoDate(); }
+      changed(); render();
+    });
+    nm.style.cursor="pointer"; nm.addEventListener("click",()=>{ const n=prompt("Habit (blank to delete):",h.name); if(n===null)return; if(!n.trim()){ store.habits=store.habits.filter(x=>x!==h); } else h.name=n.trim(); changed(); render(); });
+    row.appendChild(mark); row.appendChild(nm); row.appendChild(streak);
+    return row;
+  }
+
+  // =========================================================
+  //  JOURNAL  (prose — markdown, never parsed into fields)
+  // =========================================================
+  function renderJournal(v){
+    v.appendChild(sectionHead("Journal"));
+    const today=isoDate();
+    const existing=store.journal.find(j=>j.date===today);
+    const c=card(existing?"Today's entry":"New entry — "+today);
+    const ta=document.createElement("textarea"); ta.className="journal"; ta.placeholder="Write freely. Markdown like **bold** is kept as-is."; ta.value=existing?existing.body:"";
+    c.appendChild(ta);
+    const row=document.createElement("div"); row.style.marginTop="10px"; row.style.display="flex"; row.style.gap="8px";
+    const save=document.createElement("button"); save.className="btn sm"; save.textContent=existing?"Update entry":"Save entry";
+    save.addEventListener("click",()=>{
+      const body=ta.value.trim();
+      if(existing){ if(body) existing.body=body; else store.journal=store.journal.filter(j=>j!==existing); }
+      else if(body){ store.journal.unshift({id:uid(),date:today,body}); }
+      changed(); render(); toast("Saved");
+    });
+    row.appendChild(save); c.appendChild(row); v.appendChild(c);
+
+    const past=store.journal.filter(j=>j.date!==today).sort((a,b)=>b.date.localeCompare(a.date));
+    if(past.length){
+      const pc=card("Past entries");
+      past.forEach(j=>{
+        const e=document.createElement("div"); e.className="jentry";
+        e.innerHTML='<div class="jdate">'+escapeHtml(j.date)+'</div><div class="jbody">'+mdInline(j.body)+'</div>';
+        pc.appendChild(e);
+      });
+      v.appendChild(pc);
+    }
+  }
+
+  // =========================================================
+  //  READING
+  // =========================================================
+  const RSTAT=["toread","reading","done"];
+  const RLABEL={toread:"To read",reading:"Reading",done:"Done"};
+  function renderReading(v){
+    v.appendChild(sectionHead("Reading & Learning"));
+    const c=card("List");
+    if(!store.reading.length){ const e=document.createElement("div"); e.className="empty"; e.textContent="Nothing here yet."; c.appendChild(e); }
+    const order={reading:0,toread:1,done:2};
+    store.reading.slice().sort((a,b)=>(order[a.status]-order[b.status])).forEach(r=>{
+      const row=document.createElement("div"); row.className="read";
+      const t=document.createElement("div"); t.className="rtitle";
+      t.innerHTML=(r.link?'<a href="'+escapeHtml(r.link)+'" target="_blank" rel="noopener">'+escapeHtml(r.title)+'</a>':escapeHtml(r.title))+'<small>'+escapeHtml(r.kind||"")+(r.note?" · "+escapeHtml(r.note):"")+'</small>';
+      const st=document.createElement("button"); st.className="rstatus "+r.status; st.textContent=RLABEL[r.status];
+      st.addEventListener("click",()=>{ r.status=RSTAT[(RSTAT.indexOf(r.status)+1)%RSTAT.length]; changed(); render(); });
+      const ed=document.createElement("button"); ed.className="rowact"; ed.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+      ed.addEventListener("click",()=>{ const n=prompt("Title (blank to delete):",r.title); if(n===null)return; if(!n.trim()){ store.reading=store.reading.filter(x=>x!==r); } else { r.title=n.trim(); const k=prompt("Kind (Book/Article/Video…):",r.kind||""); if(k!==null)r.kind=k.trim(); const l=prompt("Link (optional):",r.link||""); if(l!==null)r.link=l.trim(); } changed(); render(); });
+      row.appendChild(t); row.appendChild(st); row.appendChild(ed);
+      c.appendChild(row);
+    });
+    const add=document.createElement("button"); add.className="addline"; add.textContent="+ add item";
+    add.addEventListener("click",()=>{ const tt=prompt("Title:"); if(!tt||!tt.trim())return; const k=prompt("Kind (Book/Article/Video…):","")||""; const l=prompt("Link (optional):","")||""; store.reading.push({id:uid(),title:tt.trim(),kind:k.trim(),status:"toread",link:l.trim(),note:"",created:isoDate()}); changed(); render(); });
+    c.appendChild(add); v.appendChild(c);
+  }
+
+  // =========================================================
+  //  shared UI builders
+  // =========================================================
+  function card(title){ const c=document.createElement("div"); c.className="card"; if(title){ const h=document.createElement("h2"); h.textContent=title; c.appendChild(h); } return c; }
+  function sectionHead(title){ const d=document.createElement("div"); d.className="sectionhead"; d.innerHTML='<h2>'+escapeHtml(title)+'</h2>'; return d; }
+
+  let toastTimer=null;
+  function toast(t){ const el=$("#toast"); el.textContent=t; el.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove("show"),1700); }
+
+  // =========================================================
+  //  LOAD / SCREENS
+  // =========================================================
+  async function loadFromGitHub(){
+    setStatus("saving"); $("#status").textContent="Loading…";
+    try{
+      const r=await ghGet();
+      if(r.missing){ store=emptyStore(); store.settings.name=""; sha=null; dirty=true; await saveNow(); }
+      else { store=migrate(JSON.parse(r.text||"{}")); sha=r.sha; }
+      render(); setStatus("saved");
+    }catch(e){ setStatus("error"); toast(e.message); }
+  }
+  async function refresh(){ if(demo){ toast("Demo mode — not synced"); return; } if(dirty) await saveNow(); await loadFromGitHub(); toast("Refreshed"); }
+
+  function showApp(){ $("#setup").classList.add("hidden"); $("#app").classList.remove("hidden"); }
+  function startDemo(){ demo=true; store=seedStore(); sha=null; showApp(); render(); setStatus("demo"); }
+  function showSetup(prefill){
+    $("#app").classList.add("hidden"); $("#setup").classList.remove("hidden");
+    if(prefill && cfg){ $("#f-owner").value=cfg.owner||""; $("#f-repo").value=cfg.repo||""; $("#f-path").value=cfg.path||"planner.json"; $("#f-branch").value=cfg.branch||"main"; $("#f-token").value=cfg.token||""; }
+    else { $("#f-path").value=$("#f-path").value||"planner.json"; $("#f-branch").value=$("#f-branch").value||"main"; }
+  }
+  async function connect(){
+    const c={ owner:$("#f-owner").value.trim(), repo:$("#f-repo").value.trim(), path:($("#f-path").value.trim()||"planner.json").replace(/^\/+/,""), branch:$("#f-branch").value.trim()||"main", token:$("#f-token").value.trim() };
+    const msg=$("#setup-msg"); msg.className="msg"; msg.textContent="";
+    if(!c.owner||!c.repo||!c.token){ msg.className="msg err show"; msg.textContent="Owner, repo, and token are required."; return; }
+    cfg=c; demo=false; msg.className="msg show"; msg.textContent="Connecting…";
+    try{ await ghGet(); persist(LS,cfg); msg.className="msg ok show"; msg.textContent="Connected!"; setTimeout(()=>{ showApp(); loadFromGitHub(); },400); }
+    catch(e){ msg.className="msg err show"; msg.textContent=e.message; }
+  }
+
+  // =========================================================
+  //  INIT
+  // =========================================================
+  function init(){
+    $("#btn-connect").addEventListener("click",connect);
+    $("#btn-demo").addEventListener("click",()=>{ persist(LS, null); cfg=null; startDemo(); });
+    $("#btn-settings").addEventListener("click",()=>showSetup(true));
+    $("#btn-refresh").addEventListener("click",refresh);
+    window.addEventListener("beforeunload",()=>{ if(dirty&&!demo) saveNow(); });
+    document.addEventListener("visibilitychange",()=>{ if(document.hidden&&dirty&&!demo) saveNow(); });
+    if(cfg&&cfg.token){ showApp(); loadFromGitHub(); } else { showSetup(false); }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
