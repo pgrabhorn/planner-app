@@ -4,27 +4,31 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Master Planner</title>
-<meta name="theme-color" content="#0b0f17" />
+<meta name="theme-color" content="#f3ead0" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1d2535" media="(prefers-color-scheme: dark)" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Planner" />
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230b0f17'/%3E%3Cpath d='M52 92l22 22 54-58' fill='none' stroke='%234f9dff' stroke-width='14' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f17'/%3E%3Cpath d='M9 16l4 4 10-11' fill='none' stroke='%234f9dff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%231d2535'/%3E%3Crect y='52' width='180' height='13' fill='%23e2b23e'/%3E%3Crect y='73' width='180' height='13' fill='%23dd6a2c'/%3E%3Crect y='94' width='180' height='13' fill='%23c8442a'/%3E%3Cpath d='M52 128l22 22 54-58' fill='none' stroke='%23f3ead0' stroke-width='14' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d2535'/%3E%3Cpath d='M9 16l4 4 10-11' fill='none' stroke='%23dd6a2c' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
+  /* ---- Vintage racing-stripe palette (light, default) ---- */
   :root{
-    --bg:#0b0f17; --panel:#141a26; --panel-2:#1b2230; --line:#27303f;
-    --text:#e7ecf3; --muted:#9aa7bd; --faint:#6b7689;
-    --accent:#4f9dff; --accent-soft:#1d3147;
-    --done:#5fd08a; --warn:#ffb454; --danger:#ff6b6b; --good:#5fd08a;
+    --bg:#f3ead0; --panel:#fffdf4; --panel-2:#ece1c4; --line:#e0d3ac;
+    --text:#22304c; --muted:#7c7257; --faint:#a99d7c;
+    --accent:#dd6a2c; --accent-soft:#f7e3cd;
+    --done:#5e9a6b; --good:#5e9a6b; --warn:#caa23a; --danger:#c8442a;
     --radius:14px; --tap:44px;
   }
-  @media (prefers-color-scheme: light){
+  /* ---- Warm dark variant for night ---- */
+  @media (prefers-color-scheme: dark){
     :root{
-      --bg:#f4f6fa; --panel:#ffffff; --panel-2:#f0f3f8; --line:#e1e6ef;
-      --text:#16202e; --muted:#5b6678; --faint:#8b95a7;
-      --accent:#1f6fe5; --accent-soft:#e4eefc;
+      --bg:#1d2535; --panel:#26314a; --panel-2:#2f3b57; --line:#3a4868;
+      --text:#f3ead0; --muted:#b4a988; --faint:#8a8167;
+      --accent:#e8852c; --accent-soft:#3a3526;
+      --done:#7bbd86; --good:#7bbd86; --warn:#e2b23e; --danger:#e0654a;
     }
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
@@ -743,12 +747,12 @@
   }
   function findRent(){ for(const g of store.budget.groups) for(const it of g.items) if((it.name||"").trim().toLowerCase()==="rent") return +it.amt||0; return null; }
   function setRent(v){ for(const g of store.budget.groups) for(const it of g.items) if((it.name||"").trim().toLowerCase()==="rent") it.amt=v; }
-  const PALETTE=["#4f9dff","#5fd08a","#ffb454","#a98bff","#ff6b6b","#4ac0c0","#c0c84a"];
+  const PALETTE=["#dd6a2c","#c8442a","#2f5f8a","#e2b23e","#5e9a6b","#3f8f8f","#b5793f"];
   function drawBudgetChart(){
     const cv=document.getElementById("bchart"); if(!cv||typeof Chart==="undefined") return;
     const labels=[],vals=[],cols=[]; const b=store.budget;
     b.groups.forEach((g,i)=>{ const t=g.items.reduce((x,it)=>x+(+it.amt||0),0); if(t>0){ labels.push(g.name); vals.push(t); cols.push(PALETTE[i%PALETTE.length]); } });
-    const left=budgetLeft(); if(left>0){ labels.push("Savings"); vals.push(left); cols.push("#9fb6ab"); }
+    const left=budgetLeft(); if(left>0){ labels.push("Savings"); vals.push(left); cols.push("#b8ad8b"); }
     if(chart) chart.destroy();
     chart=new Chart(cv,{type:"doughnut",data:{labels,datasets:[{data:vals,backgroundColor:cols,borderWidth:2,borderColor:getComputedStyle(document.body).getPropertyValue("--panel")}]},options:{plugins:{legend:{display:false}},cutout:"62%"}});
     const lg=document.getElementById("blegend"); if(lg){ lg.innerHTML=""; labels.forEach((l,i)=>{ const s=document.createElement("span"); s.innerHTML='<i style="background:'+cols[i]+'"></i>'+escapeHtml(l)+' — '+money(vals[i]); lg.appendChild(s); }); }
