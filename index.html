@@ -13,6 +13,7 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23b65d3c'/%3E%3Cpath d='M52 92l24 24 52-56' fill='none' stroke='%23fffefa' stroke-width='16' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23b65d3c'/%3E%3Cpath d='M9 16l4 4 10-11' fill='none' stroke='%23fffefa' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
@@ -220,8 +221,9 @@
   nav.tabs{position:fixed; bottom:0; left:0; right:0; z-index:40; background:var(--bg);
     border-top:1px solid var(--line); display:flex; padding-bottom:env(safe-area-inset-bottom);}
   nav.tabs button{flex:1; min-width:0; padding:8px 1px 7px; display:flex; flex-direction:column; align-items:center;
-    gap:3px; color:var(--faint); font-size:10px; letter-spacing:-.01em; white-space:nowrap; background:none;}
-  nav.tabs button svg{width:21px; height:21px;}
+    gap:3px; color:var(--faint); font-size:9.5px; letter-spacing:-.02em; white-space:nowrap; background:none; overflow:hidden;}
+  nav.tabs button span{max-width:100%; overflow:hidden; text-overflow:ellipsis;}
+  nav.tabs button svg{width:20px; height:20px;}
   nav.tabs button.on{color:var(--accent);}
 
   /* Setup / settings */
@@ -461,6 +463,7 @@
   const TABS = [
     {id:"today", label:"Today", icon:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>'},
     {id:"tasks", label:"Tasks", icon:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'},
+    {id:"calendar",label:"Calendar",icon:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'},
     {id:"budget",label:"Budget",icon:'<path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'},
     {id:"recipes",label:"Recipes",icon:'<path d="M6 3v6a2 2 0 0 0 4 0V3"/><path d="M8 9v12"/><path d="M16 3v18"/><path d="M16 3c2 0 3 2 3 5s-1 5-3 5"/>'},
     {id:"shopping",label:"Shopping",icon:'<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>'},
@@ -483,7 +486,7 @@
     if(!store) return;
     renderTabs();
     const v=$("#view"); v.innerHTML="";
-    ({today:renderToday, tasks:renderTasks, budget:renderBudget, recipes:renderRecipes, shopping:renderShopping, journal:renderJournal, reading:renderReading}[ui.tab]||renderToday)(v);
+    ({today:renderToday, tasks:renderTasks, calendar:renderCalendar, budget:renderBudget, recipes:renderRecipes, shopping:renderShopping, journal:renderJournal, reading:renderReading}[ui.tab]||renderToday)(v);
   }
 
   // =========================================================
@@ -512,6 +515,17 @@
     pulse.querySelectorAll(".stat")[0].addEventListener("click",()=>go("tasks"));
     pulse.querySelectorAll(".stat")[2].addEventListener("click",()=>go("budget"));
     v.appendChild(pulse);
+
+    // today's calendar (if connected)
+    if((store.settings.googleClientId||"").trim() && gToken){
+      const c=card("Today's schedule");
+      const h=document.createElement("div"); h.id="today-cal"; h.innerHTML='<div class="subtle">Loading…</div>';
+      c.appendChild(h);
+      const open=document.createElement("button"); open.className="addline"; open.textContent="Open calendar →";
+      open.addEventListener("click",()=>go("calendar")); c.appendChild(open);
+      v.appendChild(c);
+      loadTodayEvents();
+    }
 
     // quick capture
     v.appendChild(captureBar());
@@ -753,11 +767,6 @@
     grid.querySelector("#efNow").addEventListener("input",e=>{ b.efNow=parseFloat(e.target.value)||0; changed(); softBudget(); });
     v.appendChild(ef);
 
-    // windfall guidance
-    const wf=card("Windfalls — not in the monthly math"); wf.classList.add("info");
-    wf.innerHTML+='<span class="pill">distributions · home payout</span><p>When a distribution or the home buyout lands, split it on arrival:</p><ol><li>~50% to the ownership-stake payback.</li><li>Set aside taxes on the full amount; fund the year\'s <b>$800/qtr</b> estimates and park separately.</li><li>Deploy the rest: top off the emergency fund, then down-payment fund &amp; brokerage.</li></ol>';
-    v.appendChild(wf);
-
     softBudget();
   }
   function softBudget(){
@@ -962,6 +971,195 @@
     const add=document.createElement("button"); add.className="addline"; add.textContent="+ add item";
     add.addEventListener("click",()=>{ const tt=prompt("Title:"); if(!tt||!tt.trim())return; const k=prompt("Kind (Book/Article/Video…):","")||""; const l=prompt("Link (optional):","")||""; store.reading.push({id:uid(),title:tt.trim(),kind:k.trim(),status:"toread",link:l.trim(),note:"",created:isoDate()}); changed(); render(); });
     c.appendChild(add); v.appendChild(c);
+  }
+
+  // =========================================================
+  //  CALENDAR  (live two-way Google Calendar via browser OAuth)
+  // =========================================================
+  let gToken=null, gTokenExp=0, gTokenClient=null, gPending=null;
+  let gcalEvents=null, gcalFetchedAt=0;
+  const GSCOPE="https://www.googleapis.com/auth/calendar.events";
+  const GAPI="https://www.googleapis.com/calendar/v3";
+
+  function gisReady(){ return !!(window.google && google.accounts && google.accounts.oauth2); }
+  function initGClient(){
+    if(gTokenClient) return gTokenClient;
+    const cid=(store.settings.googleClientId||"").trim();
+    if(!cid || !gisReady()) return null;
+    gTokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:cid, scope:GSCOPE,
+      callback:(resp)=>{
+        if(resp.error){ if(gPending){ gPending.reject(new Error(resp.error_description||resp.error)); gPending=null; } return; }
+        gToken=resp.access_token; gTokenExp=Date.now()+(((+resp.expires_in)||3600)*1000)-60000;
+        if(gPending){ gPending.resolve(gToken); gPending=null; }
+      }
+    });
+    return gTokenClient;
+  }
+  function getGToken(interactive){
+    return new Promise((resolve,reject)=>{
+      if(gToken && Date.now()<gTokenExp){ resolve(gToken); return; }
+      const tc=initGClient();
+      if(!tc){ reject(new Error(gisReady()?"Add your Google Client ID first.":"Google sign-in still loading — try again.")); return; }
+      gPending={resolve,reject};
+      try{ tc.requestAccessToken({prompt: interactive?"consent":""}); }
+      catch(e){ gPending=null; reject(e); }
+    });
+  }
+  async function gcalApi(path, opts){
+    const token = await getGToken(false).catch(()=>getGToken(true));
+    const r=await fetch(GAPI+path, Object.assign({}, opts||{}, {
+      headers:Object.assign({ "Authorization":"Bearer "+token, "Content-Type":"application/json" }, (opts&&opts.headers)||{})
+    }));
+    if(r.status===401){ gToken=null; throw new Error("Google auth expired — reconnect."); }
+    if(!r.ok){ throw new Error("Calendar error ("+r.status+")"); }
+    return r.status===204? null : r.json();
+  }
+  async function gcalList(timeMin,timeMax){
+    const q="?singleEvents=true&orderBy=startTime&maxResults=100&timeMin="+encodeURIComponent(timeMin)+"&timeMax="+encodeURIComponent(timeMax);
+    const j=await gcalApi("/calendars/primary/events"+q,{method:"GET"});
+    return (j&&j.items)||[];
+  }
+
+  function renderCalendar(v){
+    v.appendChild(sectionHead("Calendar"));
+    const cid=(store.settings.googleClientId||"").trim();
+
+    if(!cid){
+      const c=card("Connect Google Calendar");
+      const p=document.createElement("div"); p.className="subtle";
+      p.textContent="Paste your Google OAuth Client ID to enable live two-way sync. One-time setup — steps below.";
+      const inp=el("input","txt"); inp.placeholder="xxxxx.apps.googleusercontent.com"; inp.style.width="100%"; inp.style.margin="10px 0";
+      const save=el("button","btn"); save.textContent="Save Client ID";
+      save.addEventListener("click",()=>{ const val=inp.value.trim(); if(!val){toast("Paste the Client ID");return;} store.settings.googleClientId=val; gTokenClient=null; changed(); render(); });
+      const help=document.createElement("details"); help.className="help"; help.style.marginTop="14px";
+      help.innerHTML='<summary>How to get a Client ID (~10 min, one time)</summary><ol>'
+        +'<li>Go to <b>console.cloud.google.com</b> → create a project (any name).</li>'
+        +'<li>APIs &amp; Services → <b>Enable APIs</b> → enable <b>Google Calendar API</b>.</li>'
+        +'<li>OAuth consent screen → <b>External</b> → fill the basics → add yourself under <b>Test users</b>.</li>'
+        +'<li>Credentials → Create credentials → <b>OAuth client ID</b> → type <b>Web application</b>.</li>'
+        +'<li>Under <b>Authorized JavaScript origins</b> add your app URL exactly, e.g. <code>https://USERNAME.github.io</code> (no path, no trailing slash).</li>'
+        +'<li>Create, copy the Client ID (ends in <code>.apps.googleusercontent.com</code>), paste it above.</li>'
+        +'</ol><p class="subtle">Note: the calendar only works on the deployed https URL you registered — not a local file.</p>';
+      c.appendChild(p); c.appendChild(inp); c.appendChild(save); c.appendChild(help);
+      v.appendChild(c); return;
+    }
+
+    if(!gToken){
+      const c=card("Google Calendar");
+      const p=document.createElement("div"); p.className="subtle"; p.textContent="Connect to load your events.";
+      const b=el("button","btn"); b.textContent="Connect Google Calendar"; b.style.marginTop="10px";
+      b.addEventListener("click",async()=>{ try{ await getGToken(true); gcalEvents=null; toast("Connected"); render(); }catch(e){ toast(e.message); } });
+      const chg=el("button","addline"); chg.textContent="Change Client ID";
+      chg.addEventListener("click",()=>{ store.settings.googleClientId=""; gTokenClient=null; gToken=null; changed(); render(); });
+      c.appendChild(p); c.appendChild(b); c.appendChild(document.createElement("br")); c.appendChild(chg);
+      v.appendChild(c); return;
+    }
+
+    const bar=document.createElement("div"); bar.style.cssText="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;";
+    const addB=el("button","btn sm"); addB.textContent="+ Add event"; addB.addEventListener("click",addEvent);
+    const refB=el("button","btn sm ghost"); refB.textContent="Refresh"; refB.addEventListener("click",()=>loadEvents(true));
+    bar.appendChild(addB); bar.appendChild(refB); v.appendChild(bar);
+    const holder=document.createElement("div"); holder.id="gcal-holder"; v.appendChild(holder);
+    loadEvents(false);
+  }
+
+  async function loadEvents(force){
+    const holder=document.getElementById("gcal-holder"); if(!holder) return;
+    if(!force && gcalEvents && Date.now()-gcalFetchedAt<120000){ renderAgenda(holder); return; }
+    holder.innerHTML='<div class="empty">Loading events…</div>';
+    try{
+      const now=new Date(); const min=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+      const max=new Date(min.getTime()+14*86400000);
+      gcalEvents=await gcalList(min.toISOString(), max.toISOString()); gcalFetchedAt=Date.now();
+      renderAgenda(holder);
+    }catch(e){ holder.innerHTML=""; const er=document.createElement("div"); er.className="empty"; er.textContent=e.message; holder.appendChild(er); if(/expired|reconnect/i.test(e.message)){ gToken=null; } }
+  }
+  function renderAgenda(holder){
+    holder.innerHTML="";
+    if(!gcalEvents || !gcalEvents.length){ const e=document.createElement("div"); e.className="empty"; e.textContent="No events in the next two weeks."; holder.appendChild(e); return; }
+    const byDay={};
+    gcalEvents.forEach(ev=>{ const d=evStartDate(ev); (byDay[d]=byDay[d]||[]).push(ev); });
+    Object.keys(byDay).sort().forEach(day=>{
+      const c=card(prettyDay(day));
+      byDay[day].forEach(ev=>c.appendChild(eventRow(ev)));
+      holder.appendChild(c);
+    });
+  }
+  function eventRow(ev){
+    const row=el("div","task");
+    const tx=el("div","ttext");
+    tx.innerHTML=escapeHtml(ev.summary||"(no title)")+'<span class="meta">'+escapeHtml(evTimeLabel(ev))+(ev.location?" · "+escapeHtml(ev.location):"")+'</span>';
+    const ed=el("button","rowact"); ed.setAttribute("aria-label","Edit");
+    ed.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+    ed.addEventListener("click",()=>editEvent(ev));
+    row.appendChild(tx); row.appendChild(ed);
+    return row;
+  }
+  function evStartDate(ev){ const s=(ev.start&&(ev.start.dateTime||ev.start.date))||""; return s.slice(0,10); }
+  function evTimeLabel(ev){
+    if(ev.start&&ev.start.date) return "All day";
+    const s=new Date(ev.start.dateTime); const e=ev.end&&ev.end.dateTime?new Date(ev.end.dateTime):null;
+    const f=d=>d.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+    return e? f(s)+"–"+f(e) : f(s);
+  }
+  function prettyDay(iso){
+    const d=new Date(iso+"T00:00:00");
+    const t=isoDate(); const tm=isoDate(new Date(Date.now()+86400000));
+    let lbl=d.toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});
+    if(iso===t) lbl="Today · "+lbl; else if(iso===tm) lbl="Tomorrow · "+lbl;
+    return lbl;
+  }
+  function padTime(t){ const p=t.trim().split(":"); return (p[0].length<2?"0"+p[0]:p[0])+":"+p[1]; }
+  async function addEvent(){
+    const title=prompt("Event title:"); if(title===null||!title.trim()) return;
+    const date=prompt("Date (YYYY-MM-DD):", isoDate()); if(!date) return;
+    const time=prompt("Start time (HH:MM, 24h) — blank for all-day:", "09:00");
+    try{
+      let body;
+      if(time && /^\d{1,2}:\d{2}$/.test(time.trim())){
+        const start=new Date(date+"T"+padTime(time)+":00");
+        const end=new Date(start.getTime()+3600000);
+        body={summary:title.trim(), start:{dateTime:start.toISOString()}, end:{dateTime:end.toISOString()}};
+      } else {
+        const next=isoDate(new Date(new Date(date+"T00:00:00").getTime()+86400000));
+        body={summary:title.trim(), start:{date:date}, end:{date:next}};
+      }
+      await gcalApi("/calendars/primary/events",{method:"POST",body:JSON.stringify(body)});
+      toast("Event added"); loadEvents(true);
+    }catch(e){ toast(e.message); }
+  }
+  async function editEvent(ev){
+    const title=prompt("Edit title (blank = delete event):", ev.summary||"");
+    if(title===null) return;
+    try{
+      if(title.trim()===""){ if(!confirm("Delete this event from Google Calendar?")) return;
+        await gcalApi("/calendars/primary/events/"+encodeURIComponent(ev.id),{method:"DELETE"}); toast("Deleted"); loadEvents(true); return; }
+      const body={summary:title.trim()};
+      if(ev.start&&ev.start.dateTime){
+        const cur=new Date(ev.start.dateTime);
+        const def=String(cur.getHours()).padStart(2,"0")+":"+String(cur.getMinutes()).padStart(2,"0");
+        const nt=prompt("Start time (HH:MM, 24h):", def);
+        if(nt && /^\d{1,2}:\d{2}$/.test(nt.trim())){
+          const start=new Date(evStartDate(ev)+"T"+padTime(nt)+":00");
+          const dur=(ev.end&&ev.end.dateTime)?(new Date(ev.end.dateTime)-new Date(ev.start.dateTime)):3600000;
+          body.start={dateTime:start.toISOString()}; body.end={dateTime:new Date(start.getTime()+dur).toISOString()};
+        }
+      }
+      await gcalApi("/calendars/primary/events/"+encodeURIComponent(ev.id),{method:"PATCH",body:JSON.stringify(body)});
+      toast("Updated"); loadEvents(true);
+    }catch(e){ toast(e.message); }
+  }
+  async function loadTodayEvents(){
+    const h=document.getElementById("today-cal"); if(!h) return;
+    try{
+      const now=new Date(); const min=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+      const max=new Date(min.getTime()+86400000);
+      const evs=await gcalList(min.toISOString(), max.toISOString());
+      if(!evs.length){ h.innerHTML='<div class="subtle">Nothing on the calendar today.</div>'; return; }
+      h.innerHTML="";
+      evs.forEach(ev=>{ const r=el("div","task"); const tx=el("div","ttext"); tx.innerHTML=escapeHtml(ev.summary||"(no title)")+'<span class="meta">'+escapeHtml(evTimeLabel(ev))+'</span>'; r.appendChild(tx); h.appendChild(r); });
+    }catch(e){ h.innerHTML='<div class="subtle">'+escapeHtml(e.message)+'</div>'; }
   }
 
   // =========================================================
