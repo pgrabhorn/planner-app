@@ -200,6 +200,14 @@
   ul.ingredients li{margin-bottom:4px;}
   .ractions{display:flex; gap:8px; flex-wrap:wrap;}
 
+  /* Grocery categories */
+  .gcat-head{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--accent); font-weight:700; margin:14px 2px 2px;}
+  .gcat-head:first-child{margin-top:4px;}
+  select.gcatsel{flex:none; font-size:11px; color:var(--muted); background:var(--panel-2);
+    border:1px solid var(--line); border-radius:8px; padding:4px 5px; max-width:104px;}
+  select.gcatsel:focus{outline:none; border-color:var(--accent);}
+
   /* Journal */
   .jentry{border-left:3px solid var(--line); padding:2px 0 12px 12px; margin-bottom:14px;}
   .jentry .jdate{font-size:12px; color:var(--faint); margin-bottom:4px;}
@@ -373,7 +381,7 @@
       reading:[],      // {id,title,kind,status,link,note,created}  status: toread|reading|done
       journal:[],      // {id,date,body}  body = freeform markdown/prose
       budget:defaultBudget(),
-      settings:{ name:"" }
+      settings:{ name:"", itemCats:{} }   // itemCats = learned grocery item→category overrides
     };
   }
   function defaultBudget(){
@@ -404,7 +412,7 @@
       {id:uid(),name:"Weeknight tacos",tags:["Dinner"],ingredients:["Ground beef","Tortillas","Cheese","Salsa","Lettuce"],created:today}
     ];
     s.shopping = {
-      groceries:[{id:uid(),text:"Eggs",done:false},{id:uid(),text:"Coffee",done:false}],
+      groceries:[{id:uid(),text:"Eggs",done:false,cat:"Dairy & Eggs"},{id:uid(),text:"Coffee",done:false,cat:"Beverages"}],
       household:[{id:uid(),text:"Dish soap",done:false},{id:uid(),text:"Deodorant",done:false}]
     };
     s.reading = [
@@ -423,6 +431,8 @@
     if(!s.shopping || typeof s.shopping!=="object") s.shopping={groceries:[],household:[]};
     if(!Array.isArray(s.shopping.groceries)) s.shopping.groceries=[];
     if(!Array.isArray(s.shopping.household)) s.shopping.household=[];
+    if(!s.settings || typeof s.settings!=="object") s.settings={name:""};
+    if(!s.settings.itemCats || typeof s.settings.itemCats!=="object") s.settings.itemCats={};
     delete s.habits;   // retired in v1.1
     return s;
   }
@@ -871,7 +881,7 @@
   function addRecipeToGroceries(r){
     const have=new Set(store.shopping.groceries.map(g=>g.text.trim().toLowerCase()));
     let n=0;
-    (r.ingredients||[]).forEach(i=>{ const k=i.trim().toLowerCase(); if(k && !have.has(k)){ store.shopping.groceries.push({id:uid(),text:i,done:false}); have.add(k); n++; } });
+    (r.ingredients||[]).forEach(i=>{ const k=i.trim().toLowerCase(); if(k && !have.has(k)){ store.shopping.groceries.push({id:uid(),text:i,done:false,cat:categorizeGrocery(i)}); have.add(k); n++; } });
     changed();
     toast(n? ("Added "+n+" to groceries") : "Already on the list");
   }
@@ -881,8 +891,73 @@
   // =========================================================
   function renderShopping(v){
     v.appendChild(sectionHead("Shopping"));
-    v.appendChild(shoppingList("Groceries","groceries","Add a grocery item…"));
+    v.appendChild(groceryList());
     v.appendChild(shoppingList("Household & essentials","household","Add an essential (dish soap, deodorant…)"));
+  }
+
+  // ---- grocery auto-categorization ----
+  const GCATS=["Produce","Bakery","Meat & Seafood","Dairy & Eggs","Frozen","Pantry","Snacks","Beverages","Household","Other"];
+  const GRULES=[
+    ["Produce",["apple","banana","orange","lettuce","spinach","kale","tomato","potato","onion","garlic","carrot","celery","pepper","cucumber","broccoli","avocado","lemon","lime","berr","strawberr","blueberr","raspberr","grape","melon","watermelon","mushroom","zucchini","squash","ginger","cilantro","parsley","basil","herb","salad","greens","corn","peas","sprout","mango","pear","peach","plum","cabbage","cauliflower","asparagus","fruit","veggie","vegetable","scallion","leek","radish","beet","kiwi","pineapple"]],
+    ["Bakery",["bread","bagel","bun","roll","tortilla","muffin","croissant","baguette","pita","naan","cake","donut","doughnut","pastry"]],
+    ["Meat & Seafood",["chicken","beef","pork","turkey","bacon","sausage","steak","ground ","ham","lamb","fish","salmon","tuna","shrimp","cod","tilapia","crab","lobster","seafood","meat","hot dog","deli","prosciutto"]],
+    ["Dairy & Eggs",["milk","half and half","half & half","heavy cream","cream cheese","cream","butter","cheese","yogurt","yoghurt","egg","sour cream","cottage","creamer","margarine"]],
+    ["Frozen",["frozen","ice cream","popsicle","frozen pizza","frozen veg"]],
+    ["Pantry",["rice","pasta","noodle","spaghetti","flour","sugar","salt","spice","seasoning","olive oil","oil","vinegar","sauce","ketchup","mustard","mayo","mayonnaise","beans","lentil","chickpea","cereal","oats","oatmeal","peanut butter","almond butter","jam","jelly","honey","broth","stock","canned","can of","soup","crumb","baking","yeast","syrup","quinoa","couscous","granola","raisin","stuffing","gravy","salsa"]],
+    ["Snacks",["chip","cracker","cookie","candy","chocolate","popcorn","pretzel","granola bar","trail mix","snack","nut","jerky"]],
+    ["Beverages",["coffee","tea","juice","soda","pop ","sparkling","water","beer","wine","seltzer","kombucha","cola","lemonade","almond milk","oat milk","soy milk","coconut milk","gatorade","energy drink","drink"]],
+    ["Household",["paper towel","toilet paper","dish soap","detergent","cleaner","cleaning","sponge","trash bag","garbage bag","foil","plastic wrap","ziploc","baggie","deodorant","shampoo","conditioner","body wash","hand soap","soap","toothpaste","toothbrush","tissue","napkin","laundry","bleach","battery","batteries","light bulb","floss","razor","q-tip","cotton","lotion","sunscreen"]]
+  ];
+  function categorizeGrocery(text){
+    const t=(text||"").trim().toLowerCase();
+    if(!t) return "Other";
+    const learned=(store.settings&&store.settings.itemCats)||{};
+    if(learned[t]) return learned[t];
+    for(const pair of GRULES){ const cat=pair[0], kws=pair[1]; if(kws.some(k=>t.includes(k))) return cat; }
+    return "Other";
+  }
+  function groceryList(){
+    const c=card("Groceries");
+    const row=document.createElement("div"); row.className="controls"; row.style.marginBottom="8px";
+    const inp=el("input","txt"); inp.placeholder="Add a grocery item… (auto-sorted by aisle)";
+    const add=el("button","btn"); add.textContent="Add";
+    const doAdd=()=>{ const val=inp.value.trim(); if(!val) return; store.shopping.groceries.unshift({id:uid(),text:val,done:false,cat:categorizeGrocery(val)}); inp.value=""; changed(); render(); };
+    add.addEventListener("click",doAdd);
+    inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); doAdd(); } });
+    row.appendChild(inp); row.appendChild(add); c.appendChild(row);
+
+    const items=store.shopping.groceries;
+    let mutated=false;
+    items.forEach(it=>{ if(!it.cat){ it.cat=categorizeGrocery(it.text); mutated=true; } });
+    if(mutated && !demo) changed();
+
+    if(!items.length){ const e=document.createElement("div"); e.className="empty"; e.textContent="Empty."; c.appendChild(e); }
+    const groups={}; items.forEach(it=>{ (groups[it.cat]=groups[it.cat]||[]).push(it); });
+    GCATS.forEach(cat=>{ const g=groups[cat]; if(!g||!g.length) return;
+      const h=el("div","gcat-head"); h.textContent=cat; c.appendChild(h);
+      g.forEach(it=>c.appendChild(groceryRow(it)));
+    });
+    if(items.some(it=>it.done)){
+      const clr=el("button","addline"); clr.textContent="Clear checked";
+      clr.addEventListener("click",()=>{ store.shopping.groceries=store.shopping.groceries.filter(it=>!it.done); changed(); render(); });
+      c.appendChild(clr);
+    }
+    return c;
+  }
+  function groceryRow(it){
+    const r=el("div","task"+(it.done?" done":""));
+    const chk=el("button","check");
+    chk.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>';
+    chk.addEventListener("click",()=>{ it.done=!it.done; changed(); render(); });
+    const tx=el("div","ttext"); tx.textContent=it.text;
+    const sel=document.createElement("select"); sel.className="gcatsel"; sel.setAttribute("aria-label","Category");
+    GCATS.forEach(cat=>{ const o=document.createElement("option"); o.value=cat; o.textContent=cat; if(cat===it.cat) o.selected=true; sel.appendChild(o); });
+    sel.addEventListener("change",()=>{ it.cat=sel.value; store.settings.itemCats=store.settings.itemCats||{}; store.settings.itemCats[(it.text||"").trim().toLowerCase()]=sel.value; changed(); render(); });
+    const del=el("button","rowact");
+    del.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+    del.addEventListener("click",()=>{ store.shopping.groceries=store.shopping.groceries.filter(x=>x!==it); changed(); render(); });
+    r.appendChild(chk); r.appendChild(tx); r.appendChild(sel); r.appendChild(del);
+    return r;
   }
   function shoppingList(title,key,placeholder){
     const c=card(title);
